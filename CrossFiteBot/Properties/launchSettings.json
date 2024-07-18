@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "CrossFitaBot": {
+      "commandName": "Project",
+      "commandLineArgs": "--user alexbduraes@gmail.com --password JsA92zqsEVGLh4 --box Squad --targetSlotStartTime 06:00 --daysAhead 3 --activity \"SQUAD CROSS\""
+    }
+  }
+}

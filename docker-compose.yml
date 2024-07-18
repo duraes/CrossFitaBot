@@ -1,0 +1,13 @@
+version: '3.4'
+
+services:
+  selenium:
+    image: selenium/standalone-chrome
+    container_name: selenium-hub
+    ports:
+      - "4444:4444"
+  crossfitabot.api:
+    image: ${DOCKER_REGISTRY-}crossfitabotapi
+    build:
+      context: .
+      dockerfile: CrossFitaBot.Api/Dockerfile
