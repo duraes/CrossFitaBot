@@ -8,6 +8,8 @@ services:
       - "4444:4444"
   crossfitabot.api:
     image: ${DOCKER_REGISTRY-}crossfitabotapi
+    environment:
+        seleniumhost: "http://selenium-hub:4444/wd/hub"
     build:
       context: .
       dockerfile: CrossFitaBot.Api/Dockerfile

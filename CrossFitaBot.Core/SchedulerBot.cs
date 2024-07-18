@@ -4,6 +4,7 @@ using OpenQA.Selenium;
 using SeleniumExtras.WaitHelpers;
 using System.Xml.Linq;
 using OpenQA.Selenium.Remote;
+using System.Diagnostics;
 
 namespace CrossFitaBot.Core
 {
@@ -17,10 +18,11 @@ namespace CrossFitaBot.Core
             public required string DesiredSlot { get; init; }
             public required int DaysAhead { get; init; }
             public required string DesiredActivity { get; init; }
-            public bool HeadlessRun { get; init; } = false;
+            public bool HeadlessRun { get; init; } = 
+                false;
         }
 
-        public static void Schedule(SchedulerBotOptions options)
+        public static void Schedule(SchedulerBotOptions options, string? host)
         {
             var desiredDate = DateTime.Now.AddDays(options.DaysAhead);
 
@@ -33,12 +35,16 @@ namespace CrossFitaBot.Core
             {
                // driverOptions.AddArgument("--headless=new");
             }
+
             driverOptions.AddArgument("--ignore-ssl-errors=yes");
             driverOptions.AddArgument("--ignore-certificate-errors");
             driverOptions.AddArgument("--incognito");
+            driverOptions.AddArgument("--no-sandbox");
+            driverOptions.AddArgument("--disable-dev-shm-usage");
 
-            var driver =  new RemoteWebDriver(new Uri("http://selenium:4444/wd/hub"), driverOptions);
-            //var driver = new ChromeDriver(driverOptions);
+            IWebDriver driver = host is null ? 
+                new ChromeDriver(driverOptions) 
+                : new RemoteWebDriver(new Uri(host), driverOptions);
 
             try
             {
@@ -52,8 +58,8 @@ namespace CrossFitaBot.Core
                 var wait = new WebDriverWait(driver, TimeSpan.FromSeconds(10));
 
                 wait.IgnoreExceptionTypes(
-                    typeof(WebDriverTimeoutException),
-                    typeof(NoSuchElementException)
+                    typeof(OpenQA.Selenium.WebDriverTimeoutException),
+                    typeof(OpenQA.Selenium.NoSuchElementException)
                 );
 
                 Console.WriteLine("Procurando caixa de busca de Box");
@@ -85,68 +91,108 @@ namespace CrossFitaBot.Core
                 IWebElement loginElement = wait.Until(driver => driver.FindElement(By.XPath("//input[@type='button' or @type='submit'][contains(translate(@value, 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'LOGIN')]")));
                 loginElement.Click();
 
-                Console.WriteLine("Procurando link de aulas");
-                IWebElement aulasLink = wait.Until(driver => driver.FindElement(By.LinkText("AULAS")));
+                var elapsed = Stopwatch.StartNew();
 
-                Console.WriteLine("Clicando no link de aulas");
-                aulasLink.Click();
-
-                Console.WriteLine($"Procurando link de calendário para o dia {desiredDate.ToShortDateString()}");
-                IWebElement dayTrigger = wait.Until(driver => driver.FindElement(By.CssSelector($"[data-date=\"{dateToken}\"]")));
-
-                //((IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(false);", dayTrigger);
-                //Thread.Sleep(500);
-
-                dayTrigger = wait.Until(driver => driver.FindElement(By.CssSelector($"[data-date=\"{dateToken}\"]")));
-                ((IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", dayTrigger);
-
-                Console.WriteLine("Procurando slots");
-                var slots = wait.Until(driver => driver.FindElements(By.CssSelector("#calendar-events > div")));
-
-                Console.WriteLine($"Procurando slot desejado: {options.DesiredSlot}");
-                var targetSlot = slots.FirstOrDefault(slot => slot.Text.Contains(options.DesiredActivity) && slot.Text.Contains(options.DesiredSlot));
-
-                if (targetSlot != null)
+                do
                 {
-                    Console.WriteLine("Slot encontrado");
-                    try
+                    Console.WriteLine("Procurando link de aulas");
+                    IWebElement aulasLink = wait.Until(driver => driver.FindElement(By.LinkText("AULAS")));
+
+                    Console.WriteLine($"Elapsed: {elapsed.Elapsed}");
+
+                    Console.WriteLine("Clicando no link de aulas");
+                    ((IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", aulasLink);
+
+                    Console.WriteLine($"Elapsed: {elapsed.Elapsed}");
+
+                    Console.WriteLine($"Procurando link de calendário para o dia {desiredDate.ToShortDateString()}");
+                    IWebElement dayTrigger = wait.Until(driver => driver.FindElement(By.CssSelector($"[data-date=\"{dateToken}\"]")));
+
+                    Console.WriteLine($"Elapsed: {elapsed.Elapsed}");
+
+                    dayTrigger = wait.Until(driver => driver.FindElement(By.CssSelector($"[data-date=\"{dateToken}\"]")));
+                    ((IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", dayTrigger);
+
+                    Console.WriteLine($"Elapsed: {elapsed.Elapsed}");
+
+                    Console.WriteLine("Procurando slots");
+                    var slots = wait.Until(driver => driver.FindElements(By.CssSelector("#calendar-events > div")));
+
+                    Console.WriteLine($"Elapsed: {elapsed.Elapsed}");
+
+                    if (slots.Any(s=> s.Text.Contains("NÃO HÁ AULAS NESTE DIA")))
                     {
-                        Console.WriteLine("Procurando botão de inscrever");
-                        var buttons = targetSlot.FindElements(By.CssSelector(".buts_inscrever"));
-                        if (buttons.Any())
+                        Console.WriteLine("NÃO HÁ AULAS NESTE DIA");
+                        break;
+                    }
+
+                    Console.WriteLine($"Procurando slot desejado: {options.DesiredSlot}");
+                    var targetSlot = slots.FirstOrDefault(slot => slot.Text.Contains(options.DesiredActivity) && slot.Text.Contains(options.DesiredSlot));
+
+                    Console.WriteLine($"Elapsed: {elapsed.Elapsed}");
+
+                    if (targetSlot != null)
+                    {
+                        Console.WriteLine("Slot encontrado");
+
+                        if (targetSlot.Text.Contains("ESTÁS INSCRITO"))
                         {
-                            Console.WriteLine("Clicando no botão de inscrever");
-                            buttons.First().Click();
+                            Console.WriteLine("Já inscrito");
+                            break;
+                        }
 
-                            Console.WriteLine("Procurando botões do modal de confirmação");
-                            var modalButtons = wait.Until(driver => driver.FindElements(By.CssSelector(".dialog-button-bold")));
-                            var okButton = modalButtons.FirstOrDefault(); //modalButtons.FirstOrDefault(button => button.Text.Contains("OK"));
+                        if (targetSlot.Text.Contains("INSCRIÇÕES EM"))
+                        {
+                            Console.WriteLine("Inscrições ainda fechadas");
+                            continue;
+                        }
 
-                            if (okButton != null)
+                        try
+                        {
+                            Console.WriteLine("Procurando botão de inscrever");
+                            var buttons = targetSlot.FindElements(By.CssSelector(".buts_inscrever"));
+                            if (buttons.Any())
                             {
-                                Console.WriteLine("Clicando no botão de OK");
-                                okButton.Click();
-                                Console.WriteLine("Inscrição solicitada com sucesso");
+                                Console.WriteLine("Clicando no botão de inscrever");
+                                buttons.First().Click();
+
+                                Console.WriteLine("Procurando botões do modal de confirmação");
+                                var modalButtons = wait.Until(driver => driver.FindElements(By.CssSelector(".dialog-button-bold")));
+                                Console.WriteLine($"Elapsed: {elapsed.Elapsed}");
+
+                                var okButton = modalButtons.FirstOrDefault(); //modalButtons.FirstOrDefault(button => button.Text.Contains("OK"));
+
+                                if (okButton != null)
+                                {
+                                    Console.WriteLine("Clicando no botão de OK");
+                                    okButton.Click();
+                                    Console.WriteLine($"Elapsed: {elapsed.Elapsed}");
+                                    Console.WriteLine("Inscrição solicitada com sucesso");
+                                    break;
+                                }
+                                else
+                                {
+                                    Console.WriteLine("Botão de OK não encontrado na modal.");
+                                }
                             }
                             else
                             {
-                                Console.WriteLine("Botão de OK não encontrado na modal.");
+                                Console.WriteLine("Botão de inscrever não encontrado");
                             }
                         }
-                        else
+                        catch (Exception ex)
                         {
-                            Console.WriteLine("Botão de inscrever não encontrado");
+                            Console.WriteLine("Erro ao tentar inscrever: {ex.Message}", ex.Message);
                         }
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        Console.WriteLine("Erro ao tentar inscrever: {ex.Message}", ex.Message);
+                        Console.WriteLine("Slot não encontrado");
                     }
-                }
-                else
-                { 
-                    Console.WriteLine("Slot não encontrado");
-                }
+
+                    Console.WriteLine("Navegando para página de inicial - Retry");
+                    driver.Navigate().GoToUrl("https://www.regibox.pt/app/app_nova/index.php");
+                } while (elapsed.Elapsed < TimeSpan.FromSeconds(120));
             }
             finally
             {

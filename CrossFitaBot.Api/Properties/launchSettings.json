@@ -15,7 +15,8 @@
       "launchBrowser": true,
       "launchUrl": "swagger",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "seleniumhost": "http://localhost:4444/wd/hub"
       },
       "dotnetRunMessages": true,
       "applicationUrl": "https://localhost:7258;http://localhost:5212"
@@ -25,7 +26,8 @@
       "launchBrowser": true,
       "launchUrl": "swagger",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "seleniumhost": "http://localhost:4444/wd/hub"
       }
     },
     "Docker": {

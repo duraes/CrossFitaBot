@@ -19,6 +19,7 @@ namespace CrossFitaBot
             var argTargetSlotStartTime = cmd.Option("-t | --targetSlotStartTime <value>", "Target Slot Start Time in XX:XX 24h format (06:00)", CommandOptionType.SingleValue);
             var argDaysAhead = cmd.Option("-d | --daysAhead <value>", "Number of days ahead to search for the target slot", CommandOptionType.SingleValue);
             var argActivity = cmd.Option("-a | --activity <value>", "Class Name", CommandOptionType.SingleValue);
+            var argSeleniumHost = cmd.Option("-h | --seleniumhost <value>", "Class Name", CommandOptionType.SingleValue);
 
             cmd.OnExecute(() =>
             {
@@ -38,7 +39,9 @@ namespace CrossFitaBot
                     , DaysAhead = daysAhead
                     , DesiredActivity = desiredActivity
                     , HeadlessRun = false
-                });
+                },
+                @"http://taskrunner.local:4444/wd/hub" //argSeleniumHost.Value()
+                );
 
                 return 0;
             });
